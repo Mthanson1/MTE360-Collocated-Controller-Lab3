@@ -8,6 +8,8 @@ voltageFolders = voltageFolders([voltageFolders.isdir]);  % keep only folders
 
 u0 = zeros(1,2);
 Vss = zeros(1,2);
+tau_m1 = zeros(1,2);
+tau_m2 = zeros(1);
 
 alpha = 0.54; % =m2/m1
 beta = 0.1; % =b2/b1
@@ -107,31 +109,33 @@ for i = 1:length(voltageFolders)
     %% Compute m1 for give u0
     peak_period = 500; %peaks repeat every 500 samples in cleaned data
 
-    m1 = abs(v1_trim(mask_m1));
-    m1 = m1(1:end-1); % convert from 3001 -> 3000 entities
-    m1_sum = reshape(m1, peak_period, []);
+    m1_data = abs(v1_trim(mask_m1));
+    m1_data = m1_data(1:end-1); % convert from 3001 -> 3000 entities
+    m1_sum = reshape(m1_data, peak_period, []);
     m1_avg = mean(m1_sum,2);
 
     %m1_0 = m1_avg(1);
     m1_max = max(m1_avg);
-    m1_targ = 0.63*m1_max;
+    rise_targ = [0.1, 0.9]; % 10-90% = rise time
+    rise_to_tau = log(9); % relation between rise time and time constant
+    m1_targ = rise_targ .* m1_max;
 
     t_start_m1 = 0;
     t_time_c_m1 = 0;
 
     for j = 2:length(m1_avg)
         
-        if m1_avg(j) > 0.01 && t_start_m1 == 0
+        if abs(m1_avg(j)-m1_targ(1)) <= 0.1 * m1_targ(2) && t_start_m1 == 0
             t_start_m1 = j;
         end
 
-        if abs(m1_avg(j) - m1_targ) <= 0.1 * m1_targ
+        if abs(m1_avg(j) - m1_targ(2)) <= 0.1 * m1_targ(2)
             t_time_c_m1 = j;
             break;
         end
     end
     
-    tau_m1(i) = t_time_c_m1-t_start_m1;
+    tau_m1(i) = (t_time_c_m1-t_start_m1)/rise_to_tau;
 
     %% Compute m2 only for u_0=1.5V
     if u0(i) == 1.5
@@ -141,28 +145,28 @@ for i = 1:length(voltageFolders)
 
         % make sample size a multiple of period:
         end_trim = mod(length(m2_pre),peak_period);
-        m2 = m2_pre(1:end-end_trim);
+        m2_data = m2_pre(1:end-end_trim);
 
-        m2_sum = reshape(m2, peak_period, []);
+        m2_sum = reshape(m2_data, peak_period, []);
         m2_avg = mean(m2_sum, 2);
 
         m2_max = max(m2_avg);
-        m2_targ = 0.63 * m2_max;
+        m2_targ = rise_targ .* m2_max;
 
         t_start_m2 = 0;
         t_time_c_m2 = 0;
 
         for j = 2:length(m2_avg)
-            if m2_avg(j) > 0.01 && t_start_m2 == 0
+            if abs(m2_avg(j)-m2_targ(1)) > 0.1 * m2_targ(1) && t_start_m2 == 0
                 t_start_m2 = j;
             end
 
-            if abs(m2_avg(j) - m2_targ) <= 0.1 * m2_targ
+            if abs(m2_avg(j) - m2_targ(2)) <= 0.1 * m2_targ(2)
                 t_time_c_m2 = j;
                 break;
             end
         end
-        tau_m2 = t_time_c_m2 - t_start_m2;
+        tau_m2 = (t_time_c_m2 - t_start_m2)/rise_to_tau;
     end
 end
 
@@ -173,6 +177,9 @@ x = A \ u0';
 
 b_t = x(1);
 d_t = x(2);
+
+b = b_t .* [1-beta,beta];
+d = d_t .* [1-gamma,gamma];
 
 
 function mask = makeMask(v1, fs, total_time, initial_cut_frac, ...
