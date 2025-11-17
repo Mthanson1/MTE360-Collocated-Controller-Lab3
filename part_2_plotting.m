@@ -33,7 +33,7 @@ for k = 1:numel(cases)
     end
 
     % Load .mat
-    data = load(fname);
+    data = load(filepath);
     
     fig = plot_data_p_control(data,caseName,value);
 
