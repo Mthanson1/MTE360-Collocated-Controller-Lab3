@@ -8,8 +8,8 @@ voltageFolders = voltageFolders([voltageFolders.isdir]);  % keep only folders
 
 u0 = zeros(1,2);
 Vss = zeros(1,2);
-tau_m1 = zeros(1,2);
-tau_m2 = zeros(1);
+p1 = zeros(1);
+
 
 alpha = 0.54; % =m2/m1
 beta = 0.1; % =b2/b1
@@ -106,71 +106,61 @@ for i = 1:length(voltageFolders)
 
     Vss(i) = avg_v;
 
-    %% Compute m1 for give u0
-    peak_period = 500; %peaks repeat every 500 samples in cleaned data
-
-    m1_data = abs(v1_trim(mask_m1));
-    m1_data = m1_data(1:end-1); % convert from 3001 -> 3000 entities
-    m1_sum = reshape(m1_data, peak_period, []);
-    m1_avg = mean(m1_sum,2);
-
-    %m1_0 = m1_avg(1);
-    m1_max = max(m1_avg);
-    rise_targ = [0.1, 0.9]; % 10-90% = rise time
-    rise_to_tau = log(9); % relation between rise time and time constant
-    m1_targ = rise_targ .* m1_max;
-
-    t_start_m1 = 0;
-    t_time_c_m1 = 0;
-
-    for j = 2:length(m1_avg)
-        
-        if abs(m1_avg(j)-m1_targ(1)) <= 0.1 * m1_targ(2) && t_start_m1 == 0
-            t_start_m1 = j;
-        end
-
-        if abs(m1_avg(j) - m1_targ(2)) <= 0.1 * m1_targ(2)
-            t_time_c_m1 = j;
-            break;
-        end
-    end
-    
-    tau_m1(i) = (t_time_c_m1-t_start_m1)/rise_to_tau;
-
-    %% Compute m2 only for u_0=1.5V
+    %% Compute p for u0=1.5V
     if u0(i) == 1.5
-        start_trim = 100; % trim first 100ms to remove transients
-        m2_pre = abs(v2_trim(mask_m2));
-        m2_pre = m2_pre(start_trim:end-1);
+        peak_period = 500; %peaks repeat every 500 samples in cleaned data
 
-        % make sample size a multiple of period:
-        end_trim = mod(length(m2_pre),peak_period);
-        m2_data = m2_pre(1:end-end_trim);
+        m1_data = abs(v1_trim(mask_m1));
+        m1_data = m1_data(1:end-1); % convert from 3001 -> 3000 entities
+        m1_sum = reshape(m1_data, peak_period, []);
+        m1_avg = mean(m1_sum,2);
 
-        m2_sum = reshape(m2_data, peak_period, []);
-        m2_avg = mean(m2_sum, 2);
+        %m1_0 = m1_avg(1);
+        m1_max = max(m1_avg);
+        rise_targ = [0.1, 0.9]; % 10-90% = rise time
+        rise_to_tau = log(9); % relation between rise time and time constant
+        m1_targ = rise_targ .* m1_max;
 
-        m2_max = max(m2_avg);
-        m2_targ = rise_targ .* m2_max;
+        t_start_m1 = 0;
+        t_time_c_m1 = 0;
 
-        t_start_m2 = 0;
-        t_time_c_m2 = 0;
-
-        for j = 2:length(m2_avg)
-            if abs(m2_avg(j)-m2_targ(1)) > 0.1 * m2_targ(1) && t_start_m2 == 0
-                t_start_m2 = j;
+        for j = 2:length(m1_avg)
+        
+            if abs(m1_avg(j)-m1_targ(1)) <= 0.1 * m1_targ(2) && t_start_m1 == 0
+                t_start_m1 = j;
             end
 
-            if abs(m2_avg(j) - m2_targ(2)) <= 0.1 * m2_targ(2)
-                t_time_c_m2 = j;
+            if abs(m1_avg(j) - m1_targ(2)) <= 0.1 * m1_targ(2)
+                t_time_c_m1 = j;
                 break;
             end
         end
-        tau_m2 = (t_time_c_m2 - t_start_m2)/rise_to_tau;
+        tau_m1 = (t_time_c_m1-t_start_m1)/rise_to_tau;
+
+        %% Compute FFT to extract w_d from m2 response
+        N = length(v2_trim);
+        % apply hanning window
+        w = hann(N);
+        G = mean(w);
+        v2_w = v2_trim .* w;
+
+        V2 = fft(v2_w);
+
+
+        f = (0:N-1)*(fs/N);
+        f_half = f(1:round(N/2)+1);
+        % compute amplitude of fft
+        V2_mag = (2/N)*abs(V2(1:round(N/2)+1))/G;
+        
+        V2_noDC = V2_mag(2:end);
+        [sorted_val, sorted_idx] = sort(V2_noDC, 'descend');
+
+        idx_peak2 = sorted_idx(2) + 1;
+        f_d = f_half(idx_peak2);
     end
 end
 
-
+%% extract parameter Characteristics
 A = [Vss', ones(2,1)];
 
 x = A \ u0';
@@ -181,7 +171,63 @@ d_t = x(2);
 b = b_t .* [1-beta,beta];
 d = d_t .* [1-gamma,gamma];
 
+% find real pole and mass constants
+p1 = 1/tau_m1;
+m_t = b_t / max(0,p1);
 
+m = m_t .* [1-alpha,alpha];
+
+% coverge to damping ratio
+w_d = 2*pi()*f_d;
+
+% Iteration settings
+zeta = 0.9; %initial guess
+tol = 1e-5; % convergance tolerance
+max_iter = 20; %max number of iterations
+
+fprintf("Starting iteration...\n");
+fprintf("Initial ζ guess = %.4f\n", zeta);
+
+for iter = 1:max_iter
+    w_n = w_d / sqrt(1-zeta^2);
+
+    k_approx = m(1) * m(2) * w_n^2 / m_t;
+    
+    s = tf('s');
+
+    a_1= (m(1)*b(2) + m(2)*b(1)) / (m(1)*m(2));
+    a_2= (b(1)*b(2) + m_t*k_approx) / (m(1)*m(2));
+    a_3= (b_t * k_approx) / (m(1)*m(2));
+
+    den = s*(s^3 + a_1 * s^2 + a_2 * s + a_3);
+    sys = 1/den;
+
+    [d_wn, d_z, d_p] = damp(sys); % each row: [wn  zeta  p]
+
+    % find the complex pole pair (zeta < 1 and imaginary part ~= 0)
+    idx = find(d_z < 1 & imag(d_p) ~= 0, 1, 'first');
+
+    if isempty(idx)
+        error('No complex poles found. Check parameters!');
+    end
+
+    new_zeta = d_z(idx);
+
+    fprintf("Iter %d: ζ_old = %.5f → ζ_new = %.5f\n", iter, zeta, new_zeta);
+
+    if abs(new_zeta - zeta) < tol
+        fprintf("\nConverged after %d iterations!\n", iter);
+        break;
+    end
+
+    zeta = new_zeta;
+end
+
+fprintf("\nFinal damping ratio ζ = %.6f\n", zeta);
+fprintf("Final stiffness k = %.3f N/m\n", k);
+fprintf("Final ω_n = %.3f rad/s\n", w_n);
+
+%% Function that removes periodic mask from data:
 function mask = makeMask(v1, fs, total_time, initial_cut_frac, ...
                          original_win_start, win_length, period)
 
