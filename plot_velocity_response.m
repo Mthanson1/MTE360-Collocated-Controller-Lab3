@@ -32,7 +32,7 @@ function [fig] = plot_velocity_response(data,part,val)
     ax2 = nexttile; hold(ax2,'on');
     plot(t, v2, 'Color',[1 0 1], 'LineWidth',0.5);              % X2 x in magenta
     plot(t, v2_filt, '--', 'Color',[0 1 0], 'LineWidth',1.8);   % Filtered in green
-    grid on; xlabel('t [s]'); ylabel('Velocity [mm/s]'); title(['Velocity of Mass 1 – ' part ': ' val],'Color','w');
+    grid on; xlabel('t [s]'); ylabel('Velocity [mm/s]'); title(['Velocity of Mass 2 – ' part ': ' val],'Color','w');
     legend({'V_2','V_{2 Filtered}'},'Location','eastoutside','TextColor','w','Box','off');
     darken(ax2);
 
