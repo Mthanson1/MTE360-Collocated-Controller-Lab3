@@ -183,14 +183,13 @@ d(2) = d_t/(1/gamma + 1);
 m1_avg = mean(m1);
 
 
+m_t = (1+alpha)*m1_avg;
+
+m(1) = m1_avg;
+m(2) = m_t - m1_avg;
 
 % find real pole and mass constants
-p1 = b(1)/m1_avg;
-
-m_t = b_t / max(0,p1);
-
-m(1) = m_t/(1+alpha);
-m(2) = m_t/(1/alpha + 1);
+p1 = b_t/m_t;
 
 % coverge to damping ratio
 w_d_avg = mean(w_d);
