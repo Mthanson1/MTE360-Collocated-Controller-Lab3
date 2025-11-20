@@ -5,11 +5,16 @@ baseDir = fileparts(mfilename('fullpath'));
 %% List all voltage subfolders (e.g., '1_0V', '1_5V')
 voltageFolders = dir(fullfile(baseDir,'Lab3_Group6_Data/2-5/', '*V'));
 voltageFolders = voltageFolders([voltageFolders.isdir]);  % keep only folders
+ 
+% keep ONLY '1_75V' and '2_0V'
+keep = ismember({voltageFolders.name}, {'1_75V','2_0V'});
+voltageFolders = voltageFolders(keep);
 
 u0 = zeros(1,2);
 Vss = zeros(1,2);
-p1 = zeros(1);
-
+p1 = zeros(1); 
+m1 = zeros(1,2); % Solve p1 for both u0=1.75V,2V
+w_d = zeros(1,2);
 
 alpha = 0.54; % =m2/m1
 beta = 0.1; % =b2/b1
@@ -72,13 +77,6 @@ for i = 1:length(voltageFolders)
                         0.5,  ... % win_length
                         1.0);     % period
 
-    % mask for m2 work
-    mask_m2 = makeMask(meanData.v1_filt, fs, total_time,...
-                        0.25, ... % intial fraction cut (25%)
-                        1.5,  ... % original win_start
-                        0.5,  ... % win_length
-                        1.0);     % period
-
     % crop first 25% of data to remove transients
     initial_cut = 0.25 * 8; % =1.6s
     samples_cut = initial_cut * fs;
@@ -106,58 +104,64 @@ for i = 1:length(voltageFolders)
 
     Vss(i) = avg_v;
 
-    %% Compute p for u0=1.5V
-    if u0(i) == 1.5
-        peak_period = 500; %peaks repeat every 500 samples in cleaned data
+    %% Compute m1
 
-        m1_data = abs(v1_trim(mask_m1));
-        m1_data = m1_data(1:end-1); % convert from 3001 -> 3000 entities
-        m1_sum = reshape(m1_data, peak_period, []);
-        m1_avg = mean(m1_sum,2);
+    peak_period = 500; %peaks repeat every 500 samples in cleaned data
 
-        %m1_0 = m1_avg(1);
-        m1_max = max(m1_avg);
-        rise_targ = [0.1, 0.9]; % 10-90% = rise time
-        rise_to_tau = log(9); % relation between rise time and time constant
-        m1_targ = rise_targ .* m1_max;
+    m1_data = abs(v1_trim(mask_m1));
+    m1_data = m1_data(1:end-1); % convert from 3001 -> 3000 entities
+    m1_sum = reshape(m1_data, peak_period, []);
+    m1_avg = mean(m1_sum,2);
 
-        t_start_m1 = 0;
-        t_time_c_m1 = 0;
+    % trim till start of rise
+    [~, minidx] = min(m1_avg);
+    m1_avg = m1_avg(minidx:end);
 
-        for j = 2:length(m1_avg)
-        
-            if abs(m1_avg(j)-m1_targ(1)) <= 0.1 * m1_targ(2) && t_start_m1 == 0
-                t_start_m1 = j;
-            end
 
-            if abs(m1_avg(j) - m1_targ(2)) <= 0.1 * m1_targ(2)
-                t_time_c_m1 = j;
-                break;
-            end
+    m1_ss = mean_v1; % switch to using actual steady state velocity
+    rise_targ = [0.1, 0.9]; % 10-90% = rise time
+    rise_to_tau = log(9); % relation between rise time and time constant
+    m1_targ = rise_targ .* m1_ss;
+
+    t_start_m1 = 0;
+    t_time_c_m1 = 0;
+
+    for j = 2:length(m1_avg)
+    
+        if abs(m1_avg(j)-m1_targ(1)) <= 0.1 * m1_targ(2) && t_start_m1 == 0
+            t_start_m1 = j;
         end
-        tau_m1 = (t_time_c_m1-t_start_m1)/rise_to_tau;
 
-        %% Compute FFT to extract w_d from m2 response
-        N = length(v2_trim);
-        % apply hanning window
-        w = hann(N);
-        G = mean(w);
-        v2_w = v2_trim .* w;
-
-        V2 = fft(v2_w);
-
-
-        f = (0:N-1)*(fs/N);
-        f_half = f(1:round(N/2)+1);
-        % compute amplitude of fft
-        V2_mag = (2/N)*abs(V2(1:round(N/2)+1))/G;
-        
-        V2_noDC = V2_mag(2:end);
-        [sorted_val, sorted_idx] = sort(V2_noDC, 'descend');
-
-        idx_peak2 = sorted_idx(2) + 1;
-        f_d = f_half(idx_peak2);
+        if abs(m1_avg(j) - m1_targ(2)) <= 0.1 * m1_targ(2)
+            t_time_c_m1 = j;
+            break;
+        end
     end
+    tau_m1 = (t_time_c_m1-t_start_m1)/rise_to_tau/1000; % in s
+
+    K_v = mean_v1/u0(i); %in units of mm/(Vs)
+
+    m1(i) = tau_m1/K_v;
+
+    %% Compute find w_d
+
+    %find all peaks
+    [~, t_max] = findpeaks(v2_trim, meanData.t(samples_cut+1:end), 'MinPeakProminence', 10);
+    [~, t_min] = findpeaks(-v2_trim, meanData.t(samples_cut+1:end), 'MinPeakProminence', 10);
+    t_all = [t_max(:); t_min(:)];
+    t_all = sort(t_all);
+
+    dt = diff(t_all);
+
+    % sort for f > 0.5Hz
+    dt_min = min(dt);
+    tol = max(dt)/2;
+    valid_idx = (dt <= tol);
+
+    dt_filt = dt(valid_idx);
+
+    T_avg = mean(dt_filt);
+    w_d(i) = 2*pi()/T_avg;
 end
 
 %% extract parameter Characteristics
@@ -168,17 +172,28 @@ x = A \ u0';
 b_t = x(1);
 d_t = x(2);
 
-b = b_t .* [1-beta,beta];
-d = d_t .* [1-gamma,gamma];
+%b_t = (1+beta)b1 = (1/beta + 1)b2
+
+b(1) = b_t/(1+beta);
+b(2) = b_t/(1/beta + 1);
+
+d(1) = d_t/(1+gamma);
+d(2) = d_t/(1/gamma + 1);
+
+m1_avg = mean(m1);
+
+
 
 % find real pole and mass constants
-p1 = 1/tau_m1;
+p1 = b(1)/m1_avg;
+
 m_t = b_t / max(0,p1);
 
-m = m_t .* [1-alpha,alpha];
+m(1) = m_t/(1+alpha);
+m(2) = m_t/(1/alpha + 1);
 
 % coverge to damping ratio
-w_d = 2*pi()*f_d;
+w_d_avg = mean(w_d);
 
 % Iteration settings
 zeta = 0.9; %initial guess
@@ -189,7 +204,7 @@ fprintf("Starting iteration...\n");
 fprintf("Initial ζ guess = %.4f\n", zeta);
 
 for iter = 1:max_iter
-    w_n = w_d / sqrt(1-zeta^2);
+    w_n = w_d_avg / sqrt(1-zeta^2);
 
     k_approx = m(1) * m(2) * w_n^2 / m_t;
     
