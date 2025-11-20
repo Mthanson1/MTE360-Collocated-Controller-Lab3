@@ -20,7 +20,7 @@ for i = 1:length(voltageFolders)
     vFolderName = voltageFolders(i).name;
     vFolderPath = fullfile(baseDir, 'Lab3_Group6_Data/2-5/', vFolderName);
     
-    % Find all .mat files in this voltage folder
+    % Find all .mat files in this voltage folder0.5
     matFiles = dir(fullfile(vFolderPath, '*.mat'));
     
     meanData = struct('t', [], 'u', [], 'v1', [], 'v1_filt', [], 'v2', [], 'v2_filt', []);
