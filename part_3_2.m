@@ -12,8 +12,7 @@ voltageFolders = voltageFolders(keep);
 
 u0 = zeros(1,2);
 Vss = zeros(1,2);
-p1 = zeros(1); 
-m1 = zeros(1,2); % Solve p1 for both u0=1.75V,2V
+p1 = zeros(1,2); 
 w_d = zeros(1,2);
 
 alpha = 0.54; % =m2/m1
@@ -139,9 +138,7 @@ for i = 1:length(voltageFolders)
     end
     tau_m1 = (t_time_c_m1-t_start_m1)/rise_to_tau/1000; % in s
 
-    K_v = mean_v1/u0(i); %in units of mm/(Vs)
-
-    m1(i) = tau_m1/K_v;
+    p1(i) = 1/tau_m1;
 
     %% Compute find w_d
 
@@ -180,16 +177,13 @@ b(2) = b_t/(1/beta + 1);
 d(1) = d_t/(1+gamma);
 d(2) = d_t/(1/gamma + 1);
 
-m1_avg = mean(m1);
-
-
-m_t = (1+alpha)*m1_avg;
-
-m(1) = m1_avg;
-m(2) = m_t - m1_avg;
-
 % find real pole and mass constants
-p1 = b_t/m_t;
+p = mean(p1);
+
+m_t = b_t/p;
+
+m(1) = m_t/(1+alpha);
+m(2) = m_t/(1/alpha + 1);
 
 % coverge to damping ratio
 w_d_avg = mean(w_d);
@@ -238,7 +232,7 @@ for iter = 1:max_iter
 end
 
 fprintf("\nFinal damping ratio ζ = %.6f\n", zeta);
-fprintf("Final stiffness k = %.3f N/m\n", k);
+fprintf("Final stiffness k = %.3f N/m\n", k_approx);
 fprintf("Final ω_n = %.3f rad/s\n", w_n);
 
 %% Function that removes periodic mask from data:
