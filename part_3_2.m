@@ -103,40 +103,52 @@ for i = 1:length(voltageFolders)
 
     Vss(i) = avg_v;
 
-    %% Compute m1
+    %% Find dominant pole of m1
 
-    peak_period = 500; %peaks repeat every 500 samples in cleaned data
+    p90 = 2*avg_v*0.9 - avg_v;
+    p10 = 2*avg_v*0.1 - avg_v;
 
-    m1_data = abs(v1_trim(mask_m1));
-    m1_data = m1_data(1:end-1); % convert from 3001 -> 3000 entities
-    m1_sum = reshape(m1_data, peak_period, []);
-    m1_avg = mean(m1_sum,2);
+    t_trim = meanData.t(samples_cut+1:end);
+    u_trim = meanData.u(samples_cut+1:end);
+    rising_idx = find(u_trim(1:end-1) < 0 & u_trim(2:end) >= 0);
+    rise_times = [];
 
-    % trim till start of rise
-    [~, minidx] = min(m1_avg);
-    m1_avg = m1_avg(minidx:end);
+    for l = 1:length(rising_idx)
+        u_rise = rising_idx(l);
 
+        if l < length(rising_idx)
+            idx_end = rising_idx(l+1);
+        else
+            idx_end = length(t_trim);
+        end
 
-    m1_ss = mean_v1; % switch to using actual steady state velocity
-    rise_targ = [0.1, 0.9]; % 10-90% = rise time
-    rise_to_tau = log(9); % relation between rise time and time constant
-    m1_targ = rise_targ .* m1_ss;
+        t_window = t_trim(u_rise:idx_end);
+        v1_window = v1_trim(u_rise:idx_end);
 
-    t_start_m1 = 0;
-    t_time_c_m1 = 0;
+        %--- Find t10 crossing using linear interpolation ---
+        % Find segment where signal crosses p10
+        idx10 = find((v1_window(1:end-1) < p10 & v1_window(2:end) >= p10), 1);
+        if isempty(idx10), continue; end  % skip if not found
 
-    for j = 2:length(m1_avg)
+        t1 = t_window(idx10);     y1 = v1_window(idx10);
+        t2 = t_window(idx10+1);   y2 = v1_window(idx10+1);
+        t10 = t1 + (t2 - t1) * (p10 - y1) / (y2 - y1);
+
+        % --- Find t90 crossing using linear interpolation ---
+        idx90 = find((v1_window(1:end-1) < p90 & v1_window(2:end) >= p90), 1);
+        if isempty(idx90), continue; end
     
-        if abs(m1_avg(j)-m1_targ(1)) <= 0.1 * m1_targ(2) && t_start_m1 == 0
-            t_start_m1 = j;
-        end
+        
+        t1 = t_window(idx90);     y1 = v1_window(idx90);
+        t2 = t_window(idx90+1);   y2 = v1_window(idx90+1);
+        t90 = t1 + (t2 - t1) * (p90 - y1) / (y2 - y1);
 
-        if abs(m1_avg(j) - m1_targ(2)) <= 0.1 * m1_targ(2)
-            t_time_c_m1 = j;
-            break;
-        end
+        % --- Rise time for this cycle ---
+        rise_times(end+1) = t90 - t10;
     end
-    tau_m1 = (t_time_c_m1-t_start_m1)/rise_to_tau/1000; % in s
+
+    rise_to_tau = log(9); % relation between rise time and time constant
+    tau_m1 = mean(rise_times)/rise_to_tau;
 
     p1(i) = 1/tau_m1;
 
