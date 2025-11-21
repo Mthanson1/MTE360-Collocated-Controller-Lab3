@@ -4,11 +4,11 @@ clc; clear; close all;
 % 0) Paths / model
 % -------------------------------------------------------------------------
 baseDir = fileparts(mfilename('fullpath'));
-dataDir = fullfile(baseDir,'Lab3_Group6_Data','2-5','1_5V');   % Section 2.5, U = ±1.5 V
+dataDir = fullfile(baseDir,'Lab3_Group6_Data','2-5','2_0V');   % Section 2.5, U = ±2.0 V
 mdl    = 'flexible_drive';
 
 %% ------------------------------------------------------------------------
-% 1) Load ONLY Section 2.5, U = ±1.5 V data (average over all trials)
+% 1) Load ONLY Section 2.5, U = ±2.0 V data (average over all trials)
 % -------------------------------------------------------------------------
 matFiles = dir(fullfile(dataDir,'**','*.mat'));   % recursive search
 if isempty(matFiles)
@@ -54,21 +54,19 @@ if ~isempty(meanData.v2_filt), v2_exp = meanData.v2_filt(:); else, v2_exp = mean
 %% ------------------------------------------------------------------------
 % 2) Identified model parameters (note lower-case c)
 % -------------------------------------------------------------------------
-bT      = 0.5314;   % Vs/mm
-b1      = 0.4783;   % Vs/mm
-b2      = 0.0531;   % Vs/mm
-dcoul_r = 1.0;      % V
-dcoul_1 = 0.9;      % V
-dcoul_2 = 0.1;      % V
-p       = 0.0467;   % real pole
-mT      = 11.3675;  % kg (equivalent)
-m1      = 5.2291;   % kg
-m2      = 6.1358;   % kg
-wd      = 1.4997;   % Hz
-wn      = 1.4997;   % Hz
-zeta    = 0.00283;  % -
-k       = 6.0;      % N/m
-c       = 0.0;      % Ns/m    % <-- lowercase c
+
+b1      = 0.0265;      
+b2      = 0.0027;        
+
+dcoul_1 = 0.5051;       
+dcoul_2 = 0.0505;
+
+m1      = 0.00015955;   
+m2      = 0.00008515;
+
+k       = 0.065;        
+c       = 0.000;        
+
 
 %% ------------------------------------------------------------------------
 % 3) Input signal for Simulink – Inport/From-Workspace named 'usim'
@@ -110,24 +108,25 @@ darken = @(ax) set(ax, 'Color','k', 'XColor','w','YColor','w', ...
 % ---- v1 ----
 ax1 = subplot(2,1,1); hold(ax1,'on');
 plot(t, v1_exp,   'w',  'LineWidth', 1.4);
-plot(t, v1_sim_i, 'r--','LineWidth', 2.0);
+plot(t, v1_sim_i, 'r','LineWidth', 2.0);
 grid on;
 xlabel('Time [s]', 'Color','w');
 ylabel('v_1 [rad/s]', 'Color','w');
-title('Section 2.5, U = \pm1.5 V: v_1', 'Color','w');
+title('Section 2.5, U = \pm2.0 V: v_1', 'Color','w');
 legend({'Experiment','Simulation'}, 'TextColor','w', 'Location','Best', 'Box','off');
-ylim([-0.2 0.2])
+%ylim([-150 150])
 darken(ax1);
 
 % ---- v2 ----
 ax2 = subplot(2,1,2); hold(ax2,'on');
 plot(t, v2_exp,   'w',  'LineWidth', 1.4);
-plot(t, v2_sim_i, 'r--','LineWidth', 2.0);
+plot(t, v2_sim_i, 'r','LineWidth', 2.0);
 grid on;
 xlabel('Time [s]', 'Color','w');
 ylabel('v_2 [rad/s]', 'Color','w');
-title('Section 2.5, U = \pm1.5 V: v_2', 'Color','w');
+title('Section 2.5, U = \pm2.0 V: v_2', 'Color','w');
 legend({'Experiment','Simulation'}, 'TextColor','w', 'Location','Best', 'Box','off');
+%ylim([-100 100])
 darken(ax2);
 
 %% ------------------------------------------------------------------------
