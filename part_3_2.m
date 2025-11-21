@@ -169,7 +169,7 @@ for i = 1:length(voltageFolders)
 
     dt_filt = dt(valid_idx);
 
-    T_avg = mean(dt_filt);
+    T_avg = mean(dt_filt)*2; %multiply by 2 because we are measuring half the period
     w_d(i) = 2*pi()/T_avg;
 end
 
@@ -203,7 +203,7 @@ w_d_avg = mean(w_d);
 % Iteration settings
 zeta = 0.9; %initial guess
 tol = 1e-5; % convergance tolerance
-max_iter = 20; %max number of iterations
+max_iter = 250; %max number of iterations
 
 fprintf("Starting iteration...\n");
 fprintf("Initial ζ guess = %.4f\n", zeta);
