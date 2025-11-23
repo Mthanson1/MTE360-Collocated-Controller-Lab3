@@ -94,7 +94,7 @@ for v = 1:length(voltageFolders)
 end
 
 %% Plot requested frequency responses
-freq = {'0_5', '4_0', '8_0', '16_0'}; % Generate a figure for each frequency listed here in format XX.X = XX_X
+freq = {'0_5', '2_0', '4_0', '8_0'}; % Generate a figure for each frequency listed here in format XX.X = XX_X
 
 for j = 1:length(freq)
     freqFileName = sprintf('2_6-%sHz.mat',freq{j});

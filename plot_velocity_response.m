@@ -24,7 +24,7 @@ function [fig] = plot_velocity_response(data,part,val)
 
     ax1 = nexttile; hold(ax1,'on');
     plot(t, v1, 'Color',[0 1 1], 'LineWidth',0.5);              % V1 x in cyan
-    plot(t, v1_filt, '--', 'Color',[1 0 1], 'LineWidth',1.8);   % Filtered in magenta
+    plot(t, v1_filt, '--', 'Color',[1 0 0], 'LineWidth',1.8);   % Filtered in red
     grid on; xlabel('t [s]'); ylabel('Velocity [mm/s]'); title(['Velocity of Mass 1 – ' part ': ' val],'Color','w');
     legend({'V_1','V_{1 Filtered}'},'Location','eastoutside','TextColor','w','Box','off');
     darken(ax1);
