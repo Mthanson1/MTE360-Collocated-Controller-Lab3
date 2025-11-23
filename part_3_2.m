@@ -7,6 +7,7 @@ voltageFolders = dir(fullfile(baseDir,'Lab3_Group6_Data/2-5/', '*V'));
 voltageFolders = voltageFolders([voltageFolders.isdir]);  % keep only folders
  
 % keep ONLY '1_75V' and '2_0V'
+%keep = ismember({voltageFolders.name}, {'1_75V','2_0V'});
 keep = ismember({voltageFolders.name}, {'1_75V','2_0V'});
 voltageFolders = voltageFolders(keep);
 
@@ -81,19 +82,23 @@ for i = 1:length(voltageFolders)
     samples_cut = initial_cut * fs;
     v1_trim = meanData.v1_filt(samples_cut+1:end);
     v2_trim = meanData.v2_filt(samples_cut+1:end); 
+    t_trim = meanData.t(samples_cut+1:end);
+    u_trim = meanData.u(samples_cut+1:end);
 
     %% Compute d_t/b_t from Vss
     v1_clean = v1_trim(mask_bd);
     v2_clean = v2_trim(mask_bd);
+    t_clean = t_trim(mask_bd);
 
     den = max([abs(v1_clean), abs(v2_clean)], [], 2);
     percent_diff = abs(v1_clean - v2_clean) ./ den;
     percent_diff(isnan(percent_diff)) = 0; %avoid divide by zero errors
 
-    keep_mask = percent_diff <= 0.15;
+    keep_mask = percent_diff <= 0.1;
     
     v1_band = v1_clean(keep_mask);
     v2_band = v2_clean(keep_mask);
+    t_band = t_clean(keep_mask);
 
     mean_v1 = mean(abs(v1_band));
     mean_v2 = mean(abs(v2_band));
@@ -105,58 +110,48 @@ for i = 1:length(voltageFolders)
 
     %% Find dominant pole of m1
 
-    p90 = 2*avg_v*0.9 - avg_v;
-    p10 = 2*avg_v*0.1 - avg_v;
-
-    t_trim = meanData.t(samples_cut+1:end);
-    u_trim = meanData.u(samples_cut+1:end);
     rising_idx = find(u_trim(1:end-1) < 0 & u_trim(2:end) >= 0);
     rise_times = [];
-
-    for l = 1:length(rising_idx)
-        u_rise = rising_idx(l);
-
-        if l < length(rising_idx)
-            idx_end = rising_idx(l+1);
-        else
-            idx_end = length(t_trim);
-        end
-
-        t_window = t_trim(u_rise:idx_end);
-        v1_window = v1_trim(u_rise:idx_end);
-
-        %--- Find t10 crossing using linear interpolation ---
-        % Find segment where signal crosses p10
-        idx10 = find((v1_window(1:end-1) < p10 & v1_window(2:end) >= p10), 1);
-        if isempty(idx10), continue; end  % skip if not found
-
-        t1 = t_window(idx10);     y1 = v1_window(idx10);
-        t2 = t_window(idx10+1);   y2 = v1_window(idx10+1);
-        t10 = t1 + (t2 - t1) * (p10 - y1) / (y2 - y1);
-
-        % --- Find t90 crossing using linear interpolation ---
-        idx90 = find((v1_window(1:end-1) < p90 & v1_window(2:end) >= p90), 1);
-        if isempty(idx90), continue; end
     
-        
-        t1 = t_window(idx90);     y1 = v1_window(idx90);
-        t2 = t_window(idx90+1);   y2 = v1_window(idx90+1);
-        t90 = t1 + (t2 - t1) * (p90 - y1) / (y2 - y1);
+    tau_all = [];
+    t63_all = [];
+    v63_all = [];
 
-        % --- Rise time for this cycle ---
-        rise_times(end+1) = t90 - t10;
+
+    %Assume 25% trim:
+    for l = 1:2:8
+        seg_mask = (t_trim>=l) & (t_trim<=l+1);
+        ss_mask = (t_trim>=l+0.5) & (t_trim<l+1);
+
+        seg_v1 = v1_trim(seg_mask);
+        seg_t = t_trim(seg_mask);
+        ss_v1 = v1_trim(ss_mask);
+
+        ss = mean(ss_v1);
+        v0 = seg_v1(1);
+        t0 = seg_t(1);
+        v63 = v0 + 0.63*abs(ss-v0);
+
+        [~,idx_close] = min(abs(seg_v1-v63));
+        closest_val = seg_v1(idx_close);
+        t63 = seg_t(idx_close);
+
+        tau_all(end+1) = t63 - t0;
+        t63_all(end+1) = t63;
+        v63_all(end+1) = v63;
+
     end
 
-    rise_to_tau = log(9); % relation between rise time and time constant
-    tau_m1 = mean(rise_times)/rise_to_tau;
+    valid_tau = tau_all > 0;
+    tau = mean(tau_all(valid_tau));
 
-    p1(i) = 1/tau_m1;
+    p1(i) = 1/tau;
 
     %% Compute find w_d
 
     %find all peaks
-    [~, t_max] = findpeaks(v2_trim, meanData.t(samples_cut+1:end), 'MinPeakProminence', 10);
-    [~, t_min] = findpeaks(-v2_trim, meanData.t(samples_cut+1:end), 'MinPeakProminence', 10);
+    [v1_max, t_max] = findpeaks(v2_trim, meanData.t(samples_cut+1:end), 'MinPeakProminence', 10);
+    [v1_min, t_min] = findpeaks(-v2_trim, meanData.t(samples_cut+1:end), 'MinPeakProminence', 10);
     t_all = [t_max(:); t_min(:)];
     t_all = sort(t_all);
 
@@ -169,8 +164,8 @@ for i = 1:length(voltageFolders)
 
     dt_filt = dt(valid_idx);
 
-    T_avg = mean(dt_filt)*2; %multiply by 2 because we are measuring half the period
-    w_d(i) = 2*pi()/T_avg;
+    T_avg = mean(dt_filt); %multiply by 2 because we are measuring half the period
+    w_d(i) = pi()/T_avg;
 end
 
 %% extract parameter Characteristics
@@ -190,7 +185,7 @@ d(1) = d_t/(1+gamma);
 d(2) = d_t/(1/gamma + 1);
 
 % find real pole and mass constants
-p = mean(p1);
+p = p1(2);%mean(p1);
 
 m_t = b_t/p;
 
@@ -198,7 +193,7 @@ m(1) = m_t/(1+alpha);
 m(2) = m_t/(1/alpha + 1);
 
 % coverge to damping ratio
-w_d_avg = mean(w_d);
+w_d_avg = w_d(2);%mean(w_d);
 
 % Iteration settings
 zeta = 0.9; %initial guess
