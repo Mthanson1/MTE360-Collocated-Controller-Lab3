@@ -111,8 +111,8 @@ plot(t, v1_exp,   'w',  'LineWidth', 1.4);
 plot(t, v1_sim_i, 'r','LineWidth', 2.0);
 grid on;
 xlabel('Time [s]', 'Color','w');
-ylabel('v_1 [rad/s]', 'Color','w');
-title('Section 2.5, U = \pm2.0 V: v_1', 'Color','w');
+ylabel('v_1 [mm/s]', 'Color','w');
+title('Section 3.3, U = \pm2.0 V: v_1', 'Color','w');
 legend({'Experiment','Simulation'}, 'TextColor','w', 'Location','Best', 'Box','off');
 %ylim([-150 150])
 darken(ax1);
@@ -123,8 +123,8 @@ plot(t, v2_exp,   'w',  'LineWidth', 1.4);
 plot(t, v2_sim_i, 'r','LineWidth', 2.0);
 grid on;
 xlabel('Time [s]', 'Color','w');
-ylabel('v_2 [rad/s]', 'Color','w');
-title('Section 2.5, U = \pm2.0 V: v_2', 'Color','w');
+ylabel('v_2 [mm/s]', 'Color','w');
+title('Section 3.3, U = \pm2.0 V: v_2', 'Color','w');
 legend({'Experiment','Simulation'}, 'TextColor','w', 'Location','Best', 'Box','off');
 %ylim([-100 100])
 darken(ax2);
@@ -134,5 +134,5 @@ darken(ax2);
 % -------------------------------------------------------------------------
 outDir = fullfile(baseDir,'Section_3_Plots');
 if ~exist(outDir,'dir'); mkdir(outDir); end
-outPng = fullfile(outDir,'MTE360_2-5_1_5V_sim_overlay.png');
+outPng = fullfile(outDir,'MTE360_3-3_2_0V_sim_overlay.png');
 exportgraphics(fig, outPng, 'Resolution',300,'BackgroundColor','black');
